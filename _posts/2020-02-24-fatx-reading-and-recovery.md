@@ -7,7 +7,7 @@ tags: [xbox, forensics]
 author: aerosoul
 ---
 
-This is a write up for the data recovery tools I created for the Xbox and the Xbox 360. My goal is try and give users a greater understanding into how these tools work so that they may possibly be improved upon or just as an aid for doing manual data recovery. I will cover the FATX file system and methods for data recovery. There are currently two open source repositories on my GitHub for FATX-Tools.
+This is a write up for the data recovery tools I created for the Xbox and the Xbox 360. My goal is try and give users a greater understanding into how these tools work so that they may possibly be improved upon or just as an aid for doing manual data recovery. I will cover the FATX file system and methods for data recovery. There are currently two open source repositories on my GitHub for fatx-tools.
 
 <b>Python</b>: [fatx-tools](https://github.com/aerosoul94/fatx-tools)
 
@@ -289,12 +289,12 @@ There are two methods of data recovery implemented in fatx-tools: file carving a
 ### File Carving
 [File carving](https://en.wikipedia.org/wiki/File_carving) is a simple, but less reliable process. It goes through every certain amount of bytes (amount specified as an option in fatx-tools), and simply checks if the area of bytes matches specific "signatures" for various file formats. If the signature matches, it will then attempt to recover information, such as file name and file size using data contained within that file format alone. This process may only recover consecutive clusters and cannot rely on the FAT.
 
-Extracting information varies per file format. Thus, signatures need to be implemented in code for every file format to be carved. This is done for common xbox file formats but is a problem when trying to extract game specific files.
+Extracting information varies per file format. Thus, signatures need to be implemented in code for every file format to be carved. This is currently done for common xbox file formats (xex, xbe, exe, content files), but is a problem when trying to extract game specific files.
 
 ### Metadata Recovery
-Metadata recovery is much more reliable as it tries to recover file system metadata and then tries to rebuild the file system. It does this by searching for potentially deleted dirents, going through every 0x40 bytes of a specified partition. Using this method, we can quickly and accurately recover most, if not all, file information. This works best when dirents have not been overwritten.
+Metadata recovery is much more reliable when it comes to file information as it tries to recover file system metadata and then tries to rebuild the file system. It does this by searching for potentially deleted dirents, going through every 0x40 bytes of a specified partition. Using this method, we can quickly and accurately recover most, if not all, file information. This works best when dirents have not been overwritten.
 
-As FATX-Tools automatically searches for dirents to recover, it needs to be aware of how to not pick up false positives. To do that, it goes through a series of tests to verify that it is a dirent. If any of these tests fail, then we cannot consider these 0x40 bytes to be a dirent. Here is a list of test cases that each dirent must pass completely in order to qualify as a dirent:
+As fatx-tools automatically searches for dirents to recover, it needs to be aware of how to not pick up false positives. To do that, it goes through a series of tests to verify that it is a dirent. If any of these tests fail, then we cannot consider these 0x40 bytes to be a dirent. Here is a list of test cases that each dirent must pass completely in order to qualify as a dirent:
 
 * `FileNameLength` must not be `DIRENT_NEVER_USED` or `DIRENT_NEVER_USED2` and if it is not `DIRENT_DELETED`, then it must be greater than 0 and less than `FileName`'s length, 42.
 * `FileAttributes` must contain valid attributes.
@@ -304,14 +304,22 @@ As FATX-Tools automatically searches for dirents to recover, it needs to be awar
 
 Throughout the process, every dirent that is found is assigned it's cluster index. Once it has searched the entire partition, all of the dirents that have been found must then be linked together to form a directory tree.
 
-For every directory that is found, it checks to see if any dirent's cluster index matches the directory's `FirstCluster` index. If it does, then the dirent is added to the directory as a child dirent. Once this process is completed, it will have generated an entire directory tree similar to the original file system.
+For every directory that is found, it checks to see if any dirent's cluster index matches the directory's `FirstCluster` index. If it does, then the dirent is added to the directory as a child dirent. Once this process is completed, it will have generated an entire directory tree or trees similar, but not always identical, to the original file system.
 
 Because the cluster chain is erased when a file is deleted, we cannot rely on the FAT to recover fragmented data.
 
 ### Issues
-Note that both recovery methods recovers file data using consecutive clusters. This is a problem when the file system is [fragmented](https://en.wikipedia.org/wiki/File_system_fragmentation) where file data is **not** stored consecutively.
+Neither recovery method is perfect. For example, if a dirent happened to have been overwritten, then the metadata recovery method will not work for that file. In this case our only option is to use file carving instead, to try and find the file directly.
+
+As I mentioned in the [file carving](#file-carving) section, file carving is still not entirely reliable, at least without some form of user contribution, as unimplemented file formats for undetected files require implementation into fatx-tools to perform recovery. The reason I had initially written the project in Python, was to make it easy for users to write new file carving signatures, but I realized that this may not be very user friendly as it would require users to know Python. Eventually I may create a more user friendly solution for this.
+
+Initially you should start off with metadata recovery. This will try and rebuild the file system using any remnants of file system structures shown above. All the while, it would help to inspect the hdd image by eye in a hex editor to see if there is potentially any data that fatx-tools may have missed. If metadata recovery does not find the files you are hoping to find, you can then try file carving, though this only works for file formats that have been implemented. Your last resort unfortunately would be manual data recovery.
+
+Another issue to note is that both recovery methods recovers file data using consecutive clusters. This is a problem when the file system is [fragmented](https://en.wikipedia.org/wiki/File_system_fragmentation) where file data is **not** stored consecutively.
 
 ## Conclusion
-FATX is a very simple file system but as I dug deeper I learned a lot about other file systems and file system forensics as well. I think this would be a great example to learn from if you happen to have any FATX hdd's around.
+FATX is a very simple file system and as I dug deeper I learned a lot about other file systems and file system forensics as well. I think this would be a great example to learn from if you happen to have any FATX hdd's around and/or want to learn about file system forensics.
+
+Fatx-tools are as the name implies, tools. I cannot guarantee that they will recover everything that you hope to find, but I hope to be able to provide a base to work from, as well as provide analysis tools to assist manual recovery.
 
 I welcome any contributions. If you find any issues or have any suggests, please feel free to submit an issue or pull-request in either GitHub repository linked at the beginning of this page.
